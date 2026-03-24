@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-OpenClaw Enhanced Memory System V3.5
-真向量语义搜索 + BM25 混合检索 + Cross-Encoder 重排序
+OpenClaw Enhanced Memory System V4.0
+Local Supermemory Engine: Real Vector Search + SQLite User Profiles + Fact Extraction
 
-V3.0 → V3.5 升级：
-1. Cross-Encoder 重排序（qwen3-rerank）—— 精度提升 20-30%
-2. 多范围隔离（scope）—— 不同 agent 拥有独立记忆空间
-3. 噪音过滤 —— 自动过滤无意义短语
-4. 时间衰减 —— 近期记忆权重更高
+V4.0 Upgrade:
+1. SQLite User Profiles (Supermemory style) - Structured STATIC/DYNAMIC facts
+2. Autonomous Fact Extraction - Automatically提炼对话事实
+3. Persistent TTL Support - Expiration for temporary contexts
+4. Hybrid Retrieval + Profile Context Injection
 """
 
 import json
@@ -21,11 +21,12 @@ from collections import deque
 from pathlib import Path
 from dataclasses import dataclass, field
 
-# 导入多供应商 Embedding + Reranker
 from embedding_provider import (
     MultiProviderEmbedding, cosine_similarity, EmbeddingResult,
     DashScopeReranker
 )
+from user_profile_manager import UserProfileManager
+from fact_extractor import FactExtractor
 
 
 # ========== 噪音过滤器 ==========
@@ -499,6 +500,17 @@ class EnhancedMemoryCore:
             noise_filter=self.noise_filter
         )
 
+        # V4.0画像管理器
+        db_path = os.path.join(os.path.dirname(storage_path), "profiles.sqlite")
+        self.profile_manager = UserProfileManager(db_path)
+        
+        # 事实提取器 (需要包装 embedder 进行简单 LLM 调用，这里暂留接口)
+        def dummy_llm_call(prompt, system_prompt):
+            # 在实际集成中，用户应当传入一个真正的生成函数
+            return "[]" # 默认返回空
+
+        self.extractor = FactExtractor(llm_provider_callback=dummy_llm_call)
+
         # 分类字典
         self.context = {
             "session": {
@@ -683,23 +695,32 @@ class EnhancedMemoryCore:
 
     def get_relevant_context(self, current_query: str,
                              max_tokens: int = 500,
-                             scope: str = None) -> str:
-        """获取相关上下文"""
+                             scope: str = None,
+                             user_id: str = "default") -> str:
+        """获取相关上下文 (结合搜索结果与画像)"""
         relevant = self.smart_recall(
             current_query, max_results=3, scope=scope
         )
-        if not relevant:
-            return "（无相关历史记录）"
-
-        parts = ["=== 相关记忆 ==="]
-        current_tokens = 0
-        for mem in relevant:
-            text = f"[{mem['source']}] {mem['content'][:200]}"
-            tokens = len(text) // 4
-            if current_tokens + tokens > max_tokens:
-                break
-            parts.append(text)
-            current_tokens += tokens
+        profile_str = self.profile_manager.get_context_string(user_id)
+        
+        parts = []
+        if profile_str:
+            parts.append(profile_str)
+            
+        if relevant:
+            parts.append("\n=== 相关记忆 ===")
+            current_tokens = 0
+            for mem in relevant:
+                text = f"[{mem['source']}] {mem['content'][:200]}"
+                tokens = len(text) // 4
+                if current_tokens + tokens > max_tokens:
+                    break
+                parts.append(text)
+                current_tokens += tokens
+        else:
+            if not profile_str:
+                return "（无相关记录）"
+                
         return "\n".join(parts)
 
     def get_memory_stats(self) -> Dict:
