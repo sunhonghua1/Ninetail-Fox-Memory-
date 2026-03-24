@@ -103,6 +103,12 @@ cd openclaw-memory-v4
 
 ## 🛠 Usage (Local Supermemory)
 
+### 0. API Dependencies
+To enable the full "Local Supermemory" experience, you need to configure at least one of the following in `embedding_config.json`:
+- **Embedding API**: DashScope (text-embedding-v4), Google (gemini-embedding), or Jina. Required for semantic search.
+- **LLM API**: Any OpenAI-compatible API (for the `FactExtractor`). Required for automatic fact extraction from logs.
+- **Rerank API**: DashScope (gte-rerank) is highly recommended for +30% accuracy.
+
 ### 1. Unified Context Retrieval
 Get both semantic search results AND structured user facts in one call:
 
