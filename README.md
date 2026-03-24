@@ -101,6 +101,37 @@ cd openclaw-memory-v4
 ./install.sh
 ```
 
+## 🔌 Model Context Protocol (MCP) Plugin
+
+OpenClaw Memory V4 now supports **MCP**, allowing you to use your local memory and user profiles in **Cursor**, **Claude Desktop**, and **Windsurf**.
+
+### Installation (Claude Desktop)
+
+1. Open your `claude_desktop_config.json`.
+2. Add the following entry to `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "local-memory": {
+      "command": "python3",
+      "args": ["/home/sunhonghua/openclaw-memory-v3/mcp_memory_server.py"],
+      "env": {
+        "MEMORY_STORAGE_PATH": "/home/sunhonghua/openclaw-memory-v3/memory_v4.json",
+        "PYTHONPATH": "/home/sunhonghua/openclaw-memory-v3"
+      }
+    }
+  }
+}
+```
+
+### Available MCP Tools
+- `search_memory`: Search your long-term and short-term logs.
+- `get_user_profile`: Fetch structured user facts (Supermemory mode).
+- `extract_facts`: Automatically distill facts from the current conversation.
+
+---
+
 ## 🛠 Usage (Local Supermemory)
 
 ### 0. API Dependencies
