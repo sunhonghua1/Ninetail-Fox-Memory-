@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# OpenClaw Memory V3 一键安装脚本
+# OpenClaw Memory V4 一键安装脚本
 # 真向量语义搜索 + BM25 混合检索 + 多供应商 Embedding
 # ============================================================
 
@@ -15,7 +15,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}"
 echo "============================================================"
-echo "  🧠 OpenClaw Memory V3 Installer"
+echo "  🧠 OpenClaw Memory V4 Installer"
 echo "  真向量语义搜索 · 多供应商 Embedding · 自动 Fallback"
 echo "============================================================"
 echo -e "${NC}"
@@ -171,5 +171,5 @@ echo "  1. 确保 embedding_config.json 中至少有一个 API Key"
 echo "  2. 测试: cd $SKILL_DIR && python3 embedding_provider.py"
 echo "  3. 重启: openclaw gateway restart"
 echo ""
-echo "  📖 文档: https://github.com/sunhonghua1/openclaw-memory-v3"
+echo "  📖 文档: https://github.com/sunhonghua1/openclaw-memory-v4"
 echo ""

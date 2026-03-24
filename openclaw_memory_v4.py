@@ -204,11 +204,11 @@ class SearchResult:
     time_decay: Optional[float] = None
 
 
-# ========== 混合搜索引擎 V3.5 ==========
+# ========== 混合搜索引擎 V4.5 ==========
 
 class HybridSearchEngine:
     """
-    混合搜索引擎 V3.5
+    混合搜索引擎 V4.5
 
     完整流水线：
     1. 向量语义搜索（Bi-Encoder）—— 粗筛
@@ -330,7 +330,7 @@ class HybridSearchEngine:
                       enable_rerank: bool = True,
                       enable_time_decay: bool = True) -> List[SearchResult]:
         """
-        混合搜索 V3.5
+        混合搜索 V4.5
 
         完整流水线：粗筛 → 融合 → 时间衰减 → 精排
         """
@@ -446,20 +446,20 @@ class HybridSearchEngine:
         }
 
 
-# ========== 增强版记忆系统 V3.5 ==========
+# ========== 增强版记忆系统 V4.5 ==========
 
 class EnhancedMemoryCore:
     """
-    增强版记忆核心 V3.5
+    增强版记忆核心 V4.5
 
-    V3.0 → V3.5 新增：
+    V4.0 → V4.5 新增：
     1. Cross-Encoder 重排序（精度 +20-30%）
     2. 多范围隔离（scope 隔离不同 agent 的记忆）
     3. 噪音过滤（自动过滤无意义短语）
     4. 时间衰减（近期记忆优先）
     """
 
-    def __init__(self, storage_path: str = "/root/.openclaw/memory/openclaw_memory_v3.json",
+    def __init__(self, storage_path: str = "/root/.openclaw/memory/openclaw_memory_v4.json",
                  config_dir: str = None,
                  default_scope: str = "default",
                  half_life_days: float = 14.0):
@@ -630,7 +630,7 @@ class EnhancedMemoryCore:
                      scope: str = None,
                      enable_rerank: bool = True) -> List[Dict]:
         """
-        智能回忆（V3.5 核心）
+        智能回忆（V4.5 核心）
 
         完整流水线：向量搜索 + BM25 + 时间衰减 + Cross-Encoder 精排
         """
@@ -745,7 +745,7 @@ class EnhancedMemoryCore:
     def print_stats(self):
         stats = self.get_memory_stats()
         print("\n" + "=" * 60)
-        print("📊 增强版记忆系统 V3.5 统计")
+        print("📊 增强版记忆系统 V4.5 统计")
         print("=" * 60)
         print(f"💾 存储统计:")
         print(f"  - 文档总数: {stats['total_documents']}")
@@ -773,10 +773,10 @@ class EnhancedMemoryCore:
 # ========== 演示 ==========
 
 if __name__ == "__main__":
-    print("🚀 OpenClaw 增强记忆系统 V3.5 演示\n")
+    print("🚀 OpenClaw 增强记忆系统 V4.5 演示\n")
 
     memory = EnhancedMemoryCore(
-        storage_path="/tmp/test_memory_v35.json",
+        storage_path="/tmp/test_memory_v45.json",
         config_dir=os.path.dirname(os.path.abspath(__file__))
     )
 
@@ -796,7 +796,7 @@ if __name__ == "__main__":
     memory.add_memory("用户喜欢简洁的代码风格", scope="personal")
     memory.add_memory("交易机器人需要优化延迟", scope="project-bot")
     memory.add_memory("ICLR论文截止日期是3月", scope="project-paper")
-    memory.add_memory("OpenClaw记忆系统已升级到V3.5", scope="personal")
+    memory.add_memory("OpenClaw记忆系统已升级到V4.5", scope="personal")
     print("  ✅ 已存入 3 个不同 scope")
 
     # 只搜索特定 scope

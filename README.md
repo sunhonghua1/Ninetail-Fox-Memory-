@@ -1,8 +1,8 @@
-# 🧠 OpenClaw Memory Upgrade V3
+# 🧠 OpenClaw Memory Upgrade V4
 
 > 真向量语义搜索 + BM25 混合检索，多供应商 Embedding 自动 Fallback
 
-OpenClaw 增强记忆系统 V3 —— 将 OpenClaw 内置的基础记忆升级为真正的向量语义搜索，支持用不同的词找到含义相同的记忆。
+OpenClaw 增强记忆系统 V4 —— 将 OpenClaw 内置的基础记忆升级为真正的向量语义搜索，支持用不同的词找到含义相同的记忆。
 
 ## ✨ 核心特性
 
@@ -70,7 +70,7 @@ nano /root/.openclaw/skills/openclaw-memory/embedding_config.json
       "dimensions": 768
     },
     "jina": {
-      "model": "jina-embeddings-v3",
+      "model": "jina-embeddings-v4",
       "api_key": "你的 Jina AI API Key",
       "base_url": "https://api.jina.ai/v1",
       "dimensions": 1024
@@ -147,7 +147,7 @@ If you are currently using `mem9`, moving to OpenClaw Memory V4 is straightforwa
 
 ```
 ┌──────────────────────────────────────────┐
-│   OpenClaw Memory Enhanced V3            │
+│   OpenClaw Memory Enhanced V4            │
 │   ┌──────────────────────────────────┐   │
 │   │   HybridSearchEngine             │   │
 │   │   ┌────────────┬───────────────┐ │   │
@@ -170,7 +170,7 @@ If you are currently using `mem9`, moving to OpenClaw Memory V4 is straightforwa
 
 ## 🔄 与内置记忆的对比
 
-| 能力 | OpenClaw 内置 | V2（升级前） | **V3（本项目）** |
+| 能力 | OpenClaw 内置 | V2（升级前） | **V4（本项目）** |
 |------|:---:|:---:|:---:|
 | 向量语义搜索 | ❌ | ❌ Jaccard 词袋 | ✅ **真 Embedding** |
 | "编程规范"匹配"代码风格" | ❌ | ❌ | ✅ |
