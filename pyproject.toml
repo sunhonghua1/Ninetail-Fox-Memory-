@@ -1,0 +1,33 @@
+[project]
+name = "openclaw-memory-mcp"
+version = "4.0.0"
+description = "Local Supermemory Engine — MCP plugin for AI agents. Hybrid vector search + SQLite user profiles + autonomous fact extraction."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "sunhonghua", email = "sunhonghua@sunhonghua.com"}
+]
+keywords = ["mcp", "memory", "ai", "supermemory", "local", "sqlite", "vector-search"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "mcp>=1.0.0",
+    "httpx>=0.24.0",
+]
+
+[project.scripts]
+openclaw-memory-mcp = "mcp_memory_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
