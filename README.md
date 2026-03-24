@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="https://img.shields.io/badge/MCP_Memory_Plugin-FF4B4B?style=for-the-badge&logo=ai" alt="MCP Memory V4" />
-  <h1>🧠 支持“龙虾”(OpenClaw)与其他模型的 MCP 记忆插件</h1>
-  <p><strong>Universal MCP Memory Plugin for OpenClaw & AI Models</strong></p>
+  <img src="https://img.shields.io/badge/MCP_Memory_Plugin-FF4B4B?style=for-the-badge&logo=ai" alt="Ninetail-Fox Memory" />
+  <h1>🧠 Ninetail-Fox Memory</h1>
+  <p><strong>支持“龙虾”(OpenClaw)与其他模型的通用 MCP 记忆系统</strong></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
   [![MCP Support](https://img.shields.io/badge/Protocol-MCP_Stable-blue.svg)](https://modelcontextprotocol.io/)
