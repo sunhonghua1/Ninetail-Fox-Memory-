@@ -1,15 +1,15 @@
 <div align="center">
-  <img src="https://img.shields.io/badge/OpenClaw-Memory_V4-FF4B4B?style=for-the-badge&logo=ai" alt="OpenClaw Memory V4" />
-  <h1>🧠 OpenClaw Memory V4 (Local Supermemory)</h1>
-  <p><strong>The Universal, Privacy-First MCP Memory Plugin for AI Agents</strong></p>
+  <img src="https://img.shields.io/badge/MCP_Memory_Plugin-FF4B4B?style=for-the-badge&logo=ai" alt="MCP Memory V4" />
+  <h1>🧠 支持“龙虾”(OpenClaw)与其他模型的 MCP 记忆插件</h1>
+  <p><strong>Universal MCP Memory Plugin for OpenClaw & AI Models</strong></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
   [![MCP Support](https://img.shields.io/badge/Protocol-MCP_Stable-blue.svg)](https://modelcontextprotocol.io/)
   [![Local First](https://img.shields.io/badge/Cloud-Zero_API_Required-orange.svg)]()
 </div>
 
-> **One Memory Engine to Rule Them All.** 
-> V4 flawlessly fuses the semantic precision of **OpenClaw V3**, the persistent sandbox architecture of **mem9**, and the autonomous profiling intelligence of **Supermemory**—all running 100% locally on your machine via the standard **Model Context Protocol (MCP)**.
+> **一次配置，全模型通用。** 
+> 这是一个完全本地化、支持 **Model Context Protocol (MCP)** 的记忆增强核心。专门为 OpenClaw（龙虾框架）、Claude Desktop、Cursor 以及任何大模型提供持久化的记忆库。融合了 OpenClaw V3 的语义精准度、mem9 的持久化沙盒架构，以及 Supermemory 的自主画像提炼能力。
 
 ---
 
