@@ -149,42 +149,50 @@ If you are currently using `mem9`, moving to OpenClaw Memory V4 is straightforwa
 ---
 *Created by [sunhonghua](https://github.com/sunhonghua1) | Powered by Foxbot Engine*
 
-## 🏗️ 架构
 
+## 🏗️ Architecture (V4 High-Level)
+
+```mermaid
+graph TD
+    User([User Context]) --> Consolidator[Autonomous Fact Extractor]
+    Consolidator -->|JSON Facts| Profiles[(SQLite User Profiles)]
+    
+    Query[User Query] --> SearchEngine{Hybrid Search V4}
+    
+    SearchEngine -->|Semantic| Embed[Vector Ranking]
+    SearchEngine -->|Keyword| BM25[BM25 Ranking]
+    
+    Embed --> Fallback{Provider Fallback}
+    Fallback --> DS((DashScope))
+    Fallback --> GG((Gemini))
+    Fallback --> JN((Jina))
+    
+    Profiles -->|Structured Context| Prompt[Final System Prompt]
+    Embed & BM25 -->|Relevant Memory| Prompt
+    
+    Prompt --> LLM[LLM Generation]
 ```
-┌──────────────────────────────────────────┐
-│   OpenClaw Memory Enhanced V4            │
-│   ┌──────────────────────────────────┐   │
-│   │   HybridSearchEngine             │   │
-│   │   ┌────────────┬───────────────┐ │   │
-│   │   │ 向量搜索    │  BM25 关键词   │ │   │
-│   │   │ (70%)      │  (30%)        │ │   │
-│   │   └──────┬─────┴───────────────┘ │   │
-│   │          │                        │   │
-│   │   ┌──────▼───────────────────┐   │   │
-│   │   │  MultiProviderEmbedding  │   │   │
-│   │   │  DashScope → Google → Jina│   │   │
-│   │   └──────────────────────────┘   │   │
-│   └──────────────────────────────────┘   │
-│                                          │
-│   ┌────────────┐  ┌──────────────────┐   │
-│   │ VectorCache │  │ EnhancedMemoryCore│   │
-│   │ (JSON)     │  │ (分类字典管理)    │   │
-│   └────────────┘  └──────────────────┘   │
-└──────────────────────────────────────────┘
-```
 
-## 🔄 与内置记忆的对比
+## 🔄 Feature Comparison: V2 vs V4 (Supermemory)
 
-| 能力 | OpenClaw 内置 | V2（升级前） | **V4（本项目）** |
-|------|:---:|:---:|:---:|
-| 向量语义搜索 | ❌ | ❌ Jaccard 词袋 | ✅ **真 Embedding** |
-| "编程规范"匹配"代码风格" | ❌ | ❌ | ✅ |
-| BM25 关键词搜索 | ❌ | ✅ | ✅ |
-| 多供应商 Fallback | ❌ | ❌ | ✅ |
-| 向量缓存 | ❌ | ❌ | ✅ |
-| 分类字典管理 | ❌ | ✅ | ✅ |
-| 外部依赖 | 无 | 无 | **无** |
+| Capability | OpenClaw Native | V2 (Legacy) | **V4 (Supermemory Mode)** |
+|:---|:---:|:---:|:---:|
+| **Semantic Search** | ❌ | ❌ | ✅ **Real Vector Embedding** |
+| **Logic Matching** | ❌ | ❌ | ✅ **"Code" matches "Python"** |
+| **Keyword Search** | ❌ | ✅ | ✅ **BM25 Optimized** |
+| **Automatic Profiling**| ❌ | ❌ | ✅ **Autonomous Fact Extraction** |
+| **Active TTL** | ❌ | ❌ | ✅ **Self-Expiring Context** |
+| **Cross-Reranking** | ❌ | ❌ | ✅ **Cross-Encoder Accuracy** |
+| **Multi-Scope** | ❌ | ❌ | ✅ **Isolated Agent Sanboxes** |
+
+---
+
+> [!TIP]
+> **V4** is designed to be the "Local Ground Truth" for your agents. It doesn't just store data; it understands **who** the user is.
+
+---
+
+*Developed with ❤️ by [sunhonghua](https://github.com/sunhonghua1) | Powered by **Foxbot Engine** & **OpenClaw Community***
 
 ## 📜 License
 
