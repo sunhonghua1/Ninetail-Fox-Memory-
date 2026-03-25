@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://img.shields.io/badge/MCP_Memory_Plugin-FF4B4B?style=for-the-badge&logo=ai" alt="Ninetail-Fox Memory" />
   <h1>🧠 Ninetail-Fox Memory</h1>
-  <p><strong>支持“龙虾”(OpenClaw)与其他模型的通用 MCP 记忆系统</strong></p>
+  <p><strong>支持龙虾与其他模型的通用 MCP 记忆系统</strong></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
   [![MCP Support](https://img.shields.io/badge/Protocol-MCP_Stable-blue.svg)](https://modelcontextprotocol.io/)
@@ -9,15 +9,15 @@
 </div>
 
 > **一次配置，全模型通用。** 
-> 这是一个完全本地化、支持 **Model Context Protocol (MCP)** 的记忆增强核心。专门为 OpenClaw（龙虾框架）、Claude Desktop、Cursor 以及任何大模型提供持久化的记忆库。融合了 OpenClaw V3 的语义精准度、mem9 的持久化沙盒架构，以及 Supermemory 的自主画像提炼能力。
+> 这是一个完全本地化、支持 **Model Context Protocol (MCP)** 的记忆增强核心。专门为 Ninetail-Fox、Claude Desktop、Cursor 以及任何大模型提供持久化的记忆库。融合了 V3 的语义精准度、mem9 的持久化沙箱架构，以及 Supermemory 的自主画像提炼能力。
 
 ---
 
-## 🌟 Why OpenClaw Memory V4?
+## 🌟 Why Ninetail-Fox Memory?
 
 Most AI memory solutions force you to choose between vendor lock-in, expensive cloud APIs, or dumb keyword search. **V4 changes the game:**
 
-*   **🔌 Universal MCP Support**: Use your local memory not just in OpenClaw, but in **Cursor**, **Claude Desktop**, **Windsurf**, or any MCP-compatible client. Your memory follows *you*, not the framework.
+*   **🔌 Universal MCP Support**: Works with **Cursor**, **Claude Desktop**, **Windsurf**, or any MCP-compatible client. Your memory follows *you*, not the framework.
 *   **🛡️ 100% Local (Zero Cloud API)**: Your data stays on your hard drive (SQLite + JSON). No data is sent to third-party memory servers. It's your personal, private vault.
 *   **🧠 "Supermemory" Profiling**: Automatically extracts `STATIC` traits (e.g., "User is a Python dev") and `DYNAMIC` states (e.g., "Busy this week") with self-expiring TTLs.
 *   **🎯 Hybrid Search V4.5**: True Vector Semantic Search (70%) + BM25 Keyword Search (30%) + Cross-Encoder Reranking. Finds exactly what you mean, not just what you said.
@@ -44,8 +44,8 @@ Turn your local machine into a persistent brain for any AI assistant in under 1 
 ### 1. Installation
 
 ```bash
-git clone https://github.com/sunhonghua1/openclaw-memory-v3.git
-cd openclaw-memory-v3
+git clone https://github.com/sunhonghua1/Ninetail-Fox-Memory-.git
+cd Ninetail-Fox-Memory-
 pip install -e .
 ```
 
@@ -97,7 +97,7 @@ graph TD
 
     ClientA([Cursor IDE]):::client
     ClientB([Claude Desktop]):::client
-    ClientC([OpenClaw Agent]):::client
+    ClientC([Ninetail-Fox Agent]):::client
 
     ClientA & ClientB & ClientC -->|MCP Protocol| MCP[mcp_memory_server.py]:::core
     
@@ -125,5 +125,5 @@ graph TD
 
 <div align="center">
   <i>Engineered for Data Sovereignty by <a href="https://github.com/sunhonghua1">sunhonghua</a></i><br>
-  <i>Powered by the <b>Foxbot Engine</b> & <b>OpenClaw Community</b></i>
+  <i>Powered by the <b>Foxbot Engine</b> & <b>Ninetail-Fox Community</b></i>
 </div>
