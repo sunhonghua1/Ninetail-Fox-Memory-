@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-OpenClaw Enhanced Memory System V4.0
+Ninetail-Fox Memory V4.5
 Local Supermemory Engine: Real Vector Search + SQLite User Profiles + Fact Extraction
 
-V4.0 Upgrade:
-1. SQLite User Profiles (Supermemory style) - Structured STATIC/DYNAMIC facts
-2. Autonomous Fact Extraction - Automatically提炼对话事实
-3. Persistent TTL Support - Expiration for temporary contexts
-4. Hybrid Retrieval + Profile Context Injection
+V4.5 Fixes:
+1. conversation_log: deque(maxlen=100) → SQLite persistent storage (unlimited)
+2. VectorCache: JSON FIFO → SQLite LRU with last_accessed tracking
+3. BM25 tokenizer: optional jieba for proper Chinese word segmentation
+4. FactExtractor: wired to real LLM via openai_compatible_call
 """
 
 import json
@@ -15,11 +15,23 @@ import re
 import time
 import math
 import os
+import sqlite3
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 from collections import deque
 from pathlib import Path
 from dataclasses import dataclass, field
+
+logger = logging.getLogger("openclaw-memory")
+
+# ========== Optional jieba support ==========
+try:
+    import jieba
+    HAS_JIEBA = True
+    logger.info("jieba detected — using smart Chinese segmentation for BM25.")
+except ImportError:
+    HAS_JIEBA = False
 
 from embedding_provider import (
     MultiProviderEmbedding, cosine_similarity, EmbeddingResult,
@@ -143,50 +155,114 @@ class TimeDecay:
             return {"days_ago": 0, "decay_factor": 1.0}
 
 
-# ========== 向量缓存 ==========
+# ========== 向量缓存 (SQLite LRU) ==========
 
 class VectorCache:
     """
-    向量缓存管理器
-    将已计算的向量存入 JSON 文件，避免重复调用 Embedding API
+    向量缓存管理器 (V4.5 升级: SQLite + LRU)
+    
+    改进点:
+    - SQLite 存储替代 JSON 文件, 解决大缓存内存爆炸问题
+    - LRU 淘汰策略替代 FIFO, 高频查询的向量不会被误删
+    - last_accessed 时间戳, 按最近使用排序
     """
+    MAX_CACHE_SIZE = 10000
+    EVICT_COUNT = 2000  # 超限时淘汰最久未用的条目
 
     def __init__(self, cache_path: str):
+        # 将 .json 路径转为 .sqlite
+        if cache_path.endswith(".json"):
+            cache_path = cache_path.replace(".json", ".sqlite")
         self.cache_path = cache_path
-        self.cache: Dict[str, List[float]] = {}
-        self._load()
+        self._init_db()
+        self._migrate_from_json(cache_path)
 
-    def _load(self):
-        if Path(self.cache_path).exists():
-            try:
-                with open(self.cache_path, "r", encoding="utf-8") as f:
-                    self.cache = json.load(f)
-            except Exception:
-                self.cache = {}
+    def _init_db(self):
+        Path(self.cache_path).parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(self.cache_path)
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS vector_cache (
+                key TEXT PRIMARY KEY,
+                vector BLOB NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                last_accessed TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_vc_last_accessed ON vector_cache(last_accessed)')
+        conn.commit()
+        conn.close()
 
-    def _save(self):
+    def _migrate_from_json(self, sqlite_path: str):
+        """One-time migration from legacy JSON cache."""
+        json_path = sqlite_path.replace(".sqlite", ".json")
+        if not Path(json_path).exists():
+            return
         try:
-            Path(self.cache_path).parent.mkdir(parents=True, exist_ok=True)
-            with open(self.cache_path, "w", encoding="utf-8") as f:
-                json.dump(self.cache, f, ensure_ascii=False)
+            with open(json_path, "r", encoding="utf-8") as f:
+                old_cache = json.load(f)
+            if old_cache:
+                conn = sqlite3.connect(self.cache_path)
+                for key, vec in old_cache.items():
+                    blob = json.dumps(vec).encode("utf-8")
+                    conn.execute(
+                        'INSERT OR IGNORE INTO vector_cache (key, vector) VALUES (?, ?)',
+                        (key, blob)
+                    )
+                conn.commit()
+                conn.close()
+                logger.info(f"Migrated {len(old_cache)} vectors from JSON to SQLite.")
+            # Rename old file so migration doesn't repeat
+            Path(json_path).rename(json_path + ".migrated")
         except Exception as e:
-            print(f"⚠️ 向量缓存保存失败: {e}")
+            logger.warning(f"JSON migration skipped: {e}")
 
     @staticmethod
     def _text_key(text: str) -> str:
         return f"{hash(text[:200])}_{len(text)}"
 
     def get(self, text: str) -> Optional[List[float]]:
-        return self.cache.get(self._text_key(text))
+        key = self._text_key(text)
+        conn = sqlite3.connect(self.cache_path)
+        row = conn.execute('SELECT vector FROM vector_cache WHERE key = ?', (key,)).fetchone()
+        if row:
+            # LRU touch: update last_accessed
+            conn.execute(
+                'UPDATE vector_cache SET last_accessed = ? WHERE key = ?',
+                (datetime.now().isoformat(), key)
+            )
+            conn.commit()
+            conn.close()
+            return json.loads(row[0])
+        conn.close()
+        return None
 
     def put(self, text: str, vector: List[float]):
         key = self._text_key(text)
-        self.cache[key] = vector
-        if len(self.cache) > 5000:
-            keys = list(self.cache.keys())
-            for old_key in keys[:1000]:
-                del self.cache[old_key]
-        self._save()
+        blob = json.dumps(vector).encode("utf-8")
+        conn = sqlite3.connect(self.cache_path)
+        now = datetime.now().isoformat()
+        conn.execute(
+            'INSERT OR REPLACE INTO vector_cache (key, vector, created_at, last_accessed) VALUES (?, ?, ?, ?)',
+            (key, blob, now, now)
+        )
+        # LRU eviction: if over limit, drop oldest accessed
+        count = conn.execute('SELECT COUNT(*) FROM vector_cache').fetchone()[0]
+        if count > self.MAX_CACHE_SIZE:
+            conn.execute(f'''
+                DELETE FROM vector_cache WHERE key IN (
+                    SELECT key FROM vector_cache ORDER BY last_accessed ASC LIMIT {self.EVICT_COUNT}
+                )
+            ''')
+            logger.info(f"VectorCache LRU eviction: removed {self.EVICT_COUNT} least-recently-used entries.")
+        conn.commit()
+        conn.close()
+
+    @property
+    def size(self) -> int:
+        conn = sqlite3.connect(self.cache_path)
+        count = conn.execute('SELECT COUNT(*) FROM vector_cache').fetchone()[0]
+        conn.close()
+        return count
 
 
 # ========== 搜索结果 ==========
@@ -291,15 +367,23 @@ class HybridSearchEngine:
         return True
 
     def _tokenize(self, text: str) -> List[str]:
-        """分词（中英文混合）"""
+        """分词（中英文混合，支持 jieba 可选增强）"""
         text_lower = re.sub(r"[^\w\s]", " ", text.lower())
+        # English tokens
         tokens = text_lower.split()
-        chinese_chars = re.findall(r"[\u4e00-\u9fff]+", text)
-        for chars in chinese_chars:
-            for i in range(len(chars)):
-                tokens.append(chars[i])
-                if i < len(chars) - 1:
-                    tokens.append(chars[i:i+2])
+
+        chinese_text = re.findall(r"[\u4e00-\u9fff]+", text)
+        if HAS_JIEBA and chinese_text:
+            # Use jieba for proper Chinese word segmentation
+            for chars in chinese_text:
+                tokens.extend(jieba.cut(chars, cut_all=False))
+        else:
+            # Fallback: unigram + bigram (zero-dependency)
+            for chars in chinese_text:
+                for i in range(len(chars)):
+                    tokens.append(chars[i])
+                    if i < len(chars) - 1:
+                        tokens.append(chars[i:i+2])
         return tokens
 
     def _calculate_idf(self, scope_data: Dict):
@@ -438,7 +522,7 @@ class HybridSearchEngine:
                 name: len(s["documents"])
                 for name, s in self.scopes.items()
             },
-            "cached_vectors": len(self.vector_cache.cache),
+            "cached_vectors": self.vector_cache.size,
             "reranker_available": (
                 self.reranker.is_available if self.reranker else False
             ),
@@ -471,7 +555,7 @@ class EnhancedMemoryCore:
 
         config_path = os.path.join(config_dir, "embedding_config.json")
         cache_path = os.path.join(
-            os.path.dirname(storage_path), "vector_cache.json"
+            os.path.dirname(storage_path), "vector_cache.sqlite"
         )
 
         # 加载配置
@@ -489,7 +573,7 @@ class EnhancedMemoryCore:
         self.reranker = None
         if ds_key and not ds_key.startswith("YOUR_"):
             self.reranker = DashScopeReranker(api_key=ds_key)
-            print("✅ Cross-Encoder Reranker 已启用 (qwen3-rerank)")
+            logger.info("Cross-Encoder Reranker enabled (qwen3-rerank)")
 
         # 混合搜索引擎
         self.search_engine = HybridSearchEngine(
@@ -503,15 +587,15 @@ class EnhancedMemoryCore:
         # V4.0画像管理器
         db_path = os.path.join(os.path.dirname(storage_path), "profiles.sqlite")
         self.profile_manager = UserProfileManager(db_path)
-        
-        # 事实提取器 (需要包装 embedder 进行简单 LLM 调用，这里暂留接口)
-        def dummy_llm_call(prompt, system_prompt):
-            # 在实际集成中，用户应当传入一个真正的生成函数
-            return "[]" # 默认返回空
 
-        self.extractor = FactExtractor(llm_provider_callback=dummy_llm_call)
+        # 事实提取器 (V4.5: 使用内置 openai_compatible_call)
+        self.extractor = FactExtractor()  # Auto-uses env-based LLM
 
-        # 分类字典
+        # === conversation_log: SQLite 持久化 (V4.5) ===
+        self.conv_db_path = os.path.join(os.path.dirname(storage_path), "conversations.sqlite")
+        self._init_conv_db()
+
+        # 分类字典 (轻量内存结构, conversation_log 已移至 SQLite)
         self.context = {
             "session": {
                 "current_id": None,
@@ -532,7 +616,6 @@ class EnhancedMemoryCore:
                 "active": deque(maxlen=10),
                 "completed": deque(maxlen=20)
             },
-            "conversation_log": deque(maxlen=100)
         }
 
         # 统计
@@ -544,30 +627,125 @@ class EnhancedMemoryCore:
             "token_saved": 0
         }
 
+        self._migrate_json_conv_log()
         self.load()
         self._rebuild_search_index()
 
+    # ========== conversation_log SQLite ==========
+
+    def _init_conv_db(self):
+        """Initialize SQLite for persistent conversation storage."""
+        Path(self.conv_db_path).parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(self.conv_db_path)
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS conversation_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT NOT NULL,
+                category TEXT DEFAULT 'general',
+                scope TEXT DEFAULT 'default',
+                timestamp TEXT NOT NULL,
+                metadata TEXT DEFAULT '{}',
+                role TEXT DEFAULT 'user'
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_conv_scope ON conversation_log(scope)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_conv_ts ON conversation_log(timestamp)')
+        conn.commit()
+        conn.close()
+        logger.info(f"Conversation DB initialized at {self.conv_db_path}")
+
+    def _migrate_json_conv_log(self):
+        """One-time migration from legacy JSON conversation_log to SQLite."""
+        if not Path(self.storage_path).exists():
+            return
+        try:
+            with open(self.storage_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            old_log = data.get("conversation_log", [])
+            if not old_log:
+                return
+            # Check if already migrated
+            conn = sqlite3.connect(self.conv_db_path)
+            existing = conn.execute('SELECT COUNT(*) FROM conversation_log').fetchone()[0]
+            if existing > 0:
+                conn.close()
+                return
+            for msg in old_log:
+                if isinstance(msg, dict):
+                    conn.execute(
+                        'INSERT INTO conversation_log (content, category, scope, timestamp, metadata) VALUES (?, ?, ?, ?, ?)',
+                        (
+                            msg.get("content", ""),
+                            msg.get("category", "general"),
+                            msg.get("scope", "default"),
+                            msg.get("timestamp", datetime.now().isoformat()),
+                            json.dumps(msg.get("metadata", {})),
+                        )
+                    )
+            conn.commit()
+            conn.close()
+            logger.info(f"Migrated {len(old_log)} conversation entries from JSON to SQLite.")
+        except Exception as e:
+            logger.warning(f"Conversation migration skipped: {e}")
+
+    def _get_all_conversations(self) -> List[Dict]:
+        """Retrieve all conversations from SQLite."""
+        conn = sqlite3.connect(self.conv_db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute('SELECT * FROM conversation_log ORDER BY id').fetchall()
+        conn.close()
+        return [
+            {
+                "id": row["id"],
+                "content": row["content"],
+                "category": row["category"],
+                "scope": row["scope"],
+                "timestamp": row["timestamp"],
+                "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+                "role": row["role"],
+            }
+            for row in rows
+        ]
+
+    def _add_conversation(self, content: str, category: str = "general",
+                          scope: str = "default", metadata: Dict = None) -> int:
+        """Add a new conversation entry to SQLite. Returns the new row ID."""
+        conn = sqlite3.connect(self.conv_db_path)
+        cur = conn.execute(
+            'INSERT INTO conversation_log (content, category, scope, timestamp, metadata) VALUES (?, ?, ?, ?, ?)',
+            (content, category, scope, datetime.now().isoformat(), json.dumps(metadata or {}))
+        )
+        row_id = cur.lastrowid
+        conn.commit()
+        conn.close()
+        return row_id
+
+    def _get_conversation_count(self) -> int:
+        conn = sqlite3.connect(self.conv_db_path)
+        count = conn.execute('SELECT COUNT(*) FROM conversation_log').fetchone()[0]
+        conn.close()
+        return count
+
     def load(self):
+        """Load lightweight in-memory context (conversations are in SQLite now)."""
         if Path(self.storage_path).exists():
             try:
                 with open(self.storage_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                for key in ["user_profile", "tasks", "conversation_log"]:
+                for key in ["user_profile", "tasks"]:
                     if key in data:
-                        if key == "conversation_log":
-                            self.context[key] = deque(data[key], maxlen=100)
-                        else:
-                            for subkey, value in data[key].items():
-                                if isinstance(value, list):
-                                    max_len = 50 if "history" in subkey else 20
-                                    self.context[key][subkey] = deque(
-                                        value, maxlen=max_len
-                                    )
-                print("✅ 记忆加载成功")
+                        for subkey, value in data[key].items():
+                            if isinstance(value, list):
+                                max_len = 50 if "history" in subkey else 20
+                                self.context[key][subkey] = deque(
+                                    value, maxlen=max_len
+                                )
+                logger.info("Context loaded (conversations in SQLite).")
             except Exception as e:
-                print(f"⚠️ 加载失败: {e}")
+                logger.warning(f"Load failed: {e}")
 
     def save(self):
+        """Save lightweight context (conversations are auto-committed to SQLite)."""
         try:
             Path(self.storage_path).parent.mkdir(parents=True, exist_ok=True)
             serializable = self._to_serializable(self.context)
@@ -575,7 +753,7 @@ class EnhancedMemoryCore:
                 json.dump(serializable, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            print(f"❌ 保存失败: {e}")
+            logger.error(f"Save failed: {e}")
             return False
 
     def _to_serializable(self, obj):
@@ -588,24 +766,25 @@ class EnhancedMemoryCore:
         return obj
 
     def _rebuild_search_index(self):
-        print("🔄 重建搜索索引...")
+        """Rebuild search index from SQLite conversations (no more maxlen=100 limit!)."""
+        logger.info("Rebuilding search index from SQLite...")
         indexed = 0
-        for i, msg in enumerate(self.context["conversation_log"]):
-            if isinstance(msg, dict):
-                content = msg.get("content", "")
-                scope = msg.get("scope", self.default_scope)
-                if content:
-                    added = self.search_engine.add_document(
-                        doc_id=f"conversation_{i}",
-                        content=content,
-                        metadata={
-                            "role": msg.get("role"),
-                            "timestamp": msg.get("timestamp")
-                        },
-                        scope=scope
-                    )
-                    if added:
-                        indexed += 1
+        conversations = self._get_all_conversations()
+        for msg in conversations:
+            content = msg.get("content", "")
+            scope = msg.get("scope", self.default_scope)
+            if content:
+                added = self.search_engine.add_document(
+                    doc_id=f"conversation_{msg['id']}",
+                    content=content,
+                    metadata={
+                        "role": msg.get("role"),
+                        "timestamp": msg.get("timestamp")
+                    },
+                    scope=scope
+                )
+                if added:
+                    indexed += 1
 
         for key, value in self.context["knowledge_base"].items():
             if isinstance(value, dict):
@@ -622,7 +801,7 @@ class EnhancedMemoryCore:
                             indexed += 1
 
         scopes = self.search_engine.get_scope_list()
-        print(f"✅ 索引重建完成: {indexed} 条文档, {len(scopes)} 个范围")
+        logger.info(f"Index rebuilt: {indexed} documents across {len(scopes)} scopes.")
 
     # ========== 核心功能 ==========
 
@@ -647,11 +826,11 @@ class EnhancedMemoryCore:
             if any(r.rerank_score is not None for r in results):
                 self.stats["rerank_count"] += 1
 
-            total_size = sum(
-                len(str(msg)) for msg in self.context["conversation_log"]
-            )
+            # Estimate tokens saved (use conversation count from SQLite)
+            conv_count = self._get_conversation_count()
+            estimated_total_size = conv_count * 200  # ~200 chars/entry average
             retrieved_size = sum(len(r.content) for r in results)
-            self.stats["token_saved"] += (total_size - retrieved_size) // 4
+            self.stats["token_saved"] += max(estimated_total_size - retrieved_size, 0) // 4
 
         return [
             {
@@ -668,7 +847,7 @@ class EnhancedMemoryCore:
 
     def add_memory(self, content: str, category: str = "general",
                    metadata: Dict = None, scope: str = None):
-        """添加新记忆（自动噪音过滤 + 嵌入 + 索引）"""
+        """添加新记忆（自动噪音过滤 + 嵌入 + 索引 → SQLite 持久化）"""
         scope = scope or self.default_scope
 
         # 噪音过滤
@@ -676,21 +855,15 @@ class EnhancedMemoryCore:
             self.stats["noise_filtered"] += 1
             return False
 
-        timestamp = datetime.now().isoformat()
-        self.context["conversation_log"].append({
-            "content": content,
-            "category": category,
-            "timestamp": timestamp,
-            "scope": scope,
-            "metadata": metadata or {}
-        })
+        # Persist to SQLite (replaces the old deque append)
+        row_id = self._add_conversation(content, category, scope, metadata)
 
-        doc_id = f"{category}_{len(self.context['conversation_log'])}"
+        doc_id = f"{category}_{row_id}"
         self.search_engine.add_document(
             doc_id, content, metadata, scope=scope,
             skip_noise_filter=True
         )
-        self.save()
+        self.save()  # Save lightweight context (tasks, preferences)
         return True
 
     def get_relevant_context(self, current_query: str,
@@ -727,7 +900,7 @@ class EnhancedMemoryCore:
         search_stats = self.search_engine.get_stats()
         return {
             **search_stats,
-            "total_conversations": len(self.context["conversation_log"]),
+            "total_conversations": self._get_conversation_count(),
             "active_tasks": len(self.context["tasks"]["active"]),
             "noise_filtered": self.stats["noise_filtered"],
             "search_efficiency": {
