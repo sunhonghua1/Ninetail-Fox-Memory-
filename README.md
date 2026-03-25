@@ -26,7 +26,7 @@ Most AI memory solutions force you to choose between vendor lock-in, expensive c
 
 ## ⚔️ The Ultimate Feature Fusion
 
-| Feature | `mem9` | `Supermemory` | **OpenClaw V4** |
+| Feature | `mem9` | `Supermemory` | **Ninetail-Fox V4** |
 |:---|:---:|:---:|:---:|
 | **Zero Cloud API (Local SQLite)**| ❌ | ❌ | ✅ **Yes** |
 | **Universal MCP Plugin** | ❌ | ❌ | ✅ **Yes** |
